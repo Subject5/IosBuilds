@@ -14,7 +14,7 @@ jobs:
       - name: Compilar Proyecto
         run: |
           xcodebuild archive \
-            -project YourProject.xcodeproj \
+            -project fnis-0.0.3.alpha.xcodeproj \
             -scheme FNiS \
             -archivePath build/App.xcarchive \
             CODE_SIGNING_ALLOWED=NO
