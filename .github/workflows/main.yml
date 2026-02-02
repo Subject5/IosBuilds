@@ -15,7 +15,7 @@ jobs:
         run: |
           xcodebuild archive \
             -project fnis-0.0.3.alpha.xcodeproj \
-            -scheme FNiS \
+            -scheme fnis-0.0.3.alpha \
             -archivePath build/App.xcarchive \
             CODE_SIGNING_ALLOWED=NO
 
