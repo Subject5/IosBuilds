@@ -25,12 +25,15 @@ jobs:
 
       - name: 🏗️ Archive
         run: |
-          xcodebuild 
-            -scheme "fnis-0.0.3.alpha" 
-            -configuration Release 
-            -archivePath $PWD/build/fnis.xcarchive 
-            archive 
-            CODE_SIGNING_ALLOWED=NO
+          xcodebuild \
+            -scheme "fnis-0.0.3.alpha" \
+            -configuration Release \
+            -archivePath $PWD/build/fnis.xcarchive \
+            archive \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            DEVELOPMENT_TEAM=""
 
       - name: 📤 Export IPA
         run: |
