@@ -1,4 +1,4 @@
-name: Build IPA
+name: Build FNiS
 
 on:
   workflow_dispatch:
