@@ -1,3 +1,4 @@
+
 name: Build FNiS
 
 on:
@@ -16,33 +17,135 @@ jobs:
       CONFIGURATION: Release
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-      - name: Debug
+      - name: Select Xcode
         run: |
+          set -e
+          xcode-select -p
+          xcodebuild -version
+
+      - name: Debug project
+        run: |
+          echo "=== Current directory ==="
           pwd
+
+          echo "=== Repository files ==="
           ls -la
-          find . -name "*.xcodeproj"
-          find . -name "project.pbxproj"
-      - name: Build
+
+          echo "=== Xcode projects ==="
+          find . -name "*.xcodeproj" -print
+
+          echo "=== Project configuration ==="
+          find . -name "project.pbxproj" -print
+
+          echo "=== ios-arm64 directories ==="
+          find . -type d -name "ios-arm64" -print
+
+          echo "=== ios-arm64 references ==="
+          grep -RniE 'ios-arm64' \
+            --include="project.pbxproj" \
+            --include="Package.swift" \
+            --include="Podfile" \
+            . || true
+
+      - name: Resolve Swift packages
         run: |
+          set -e
+
+          xcodebuild \
+            -resolvePackageDependencies \
+            -project "$PROJECT" \
+            -scheme "$SCHEME"
+
+      - name: Build iOS app
+        run: |
+          set -o pipefail
+
           xcodebuild \
             -project "$PROJECT" \
             -scheme "$SCHEME" \
             -configuration "$CONFIGURATION" \
-            -derivedDataPath build \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath "$PWD/build" \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY="" \
-            build
+            clean build 2>&1 | tee build.log
+
+      - name: Diagnose build failure
+        if: failure()
+        run: |
+          echo "=== Relevant build errors ==="
+
+          if [ -f build.log ]; then
+            grep -niE \
+              'error:|ios-arm64|No such file|not found|framework' \
+              build.log | tail -n 100 || true
+          fi
+
+          echo "=== Available iOS build products ==="
+
+          if [ -d build/Build/Products ]; then
+            find build/Build/Products \
+              -maxdepth 3 \
+              \( -name "*.app" -o -name "*.framework" \
+              -o -name "*.xcframework" \) -print
+          fi
+
       - name: Create IPA
         run: |
+          set -euo pipefail
+
+          APP_DIR="build/Build/Products/Release-iphoneos"
+
+          if [ ! -d "$APP_DIR" ]; then
+            echo "::error::No existe el directorio de productos iOS: $APP_DIR"
+            exit 1
+          fi
+
+          APP=$(find "$APP_DIR" \
+            -maxdepth 1 \
+            -type d \
+            -name "*.app" \
+            -print -quit)
+
+          if [ -z "$APP" ]; then
+            echo "::error::No se encontró ninguna aplicación .app"
+            find "$APP_DIR" -maxdepth 2 -print
+            exit 1
+          fi
+
+          if [ ! -f "$APP/Info.plist" ]; then
+            echo "::error::La aplicación no contiene Info.plist"
+            exit 1
+          fi
+
+          rm -rf Payload Fnis.ipa
           mkdir Payload
-          APP=$(find build/Build/Products/Release-iphoneos -name "*.app" | head -n1)
           cp -R "$APP" Payload/
-          zip -r Fnis.ipa Payload
+
+          /usr/bin/zip -qry Fnis.ipa Payload
+
+          echo "=== IPA generado ==="
+          ls -lh Fnis.ipa
+
       - name: Upload IPA
+        if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: ipa
+          name: Fnis-IPA
           path: Fnis.ipa
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Upload build log
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Fnis-build-log
+          path: |
+            build.log
+          if-no-files-found: ignore
+          retention-days: 7
